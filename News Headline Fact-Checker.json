@@ -1,0 +1,365 @@
+{
+  "name": "News Headline Fact-Checker",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "16bb9a0e-0bc6-4d08-8752-6add36a28ddc",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        4736,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "headline",
+              "stringValue": "earth moon is going to explode completely in 2029"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6d1417e1-9c99-4f0d-8661-55cb30caec44",
+      "name": "Set Headline",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        4944,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://serpapi.com/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "serpApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.headline }}"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7422a237-f5ba-4fd1-8e7d-accf2208de09",
+      "name": "SerpAPI Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5136,
+        384
+      ],
+      "credentials": {
+        "serpApi": {
+          "id": "BLiq33A70bGotzQh",
+          "name": "SerpAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const headline = $input.first().json.headline;\nconst searchResults = $input.last().json;\n\n// Extract organic results\nconst organicResults = searchResults.organic_results || [];\n\n// Format search results for the AI\nlet formattedResults = \"\";\nif (organicResults.length > 0) {\n  formattedResults = organicResults.slice(0, 5).map((result, index) => {\n    return `Source ${index + 1}:\nTitle: ${result.title}\nSnippet: ${result.snippet}\nLink: ${result.link}\n`;\n  }).join('\\n---\\n');\n} else {\n  formattedResults = \"No search results found.\";\n}\n\nreturn {\n  headline: headline,\n  searchResults: formattedResults,\n  resultCount: organicResults.length\n};"
+      },
+      "id": "12008d28-c7be-41da-9d5c-dc8090aff600",
+      "name": "Format Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5344,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extract the text from Gemini's nested structure\nconst rawData = $input.first().json;\nconst geminiText = rawData.candidates[0].content.parts[0].text;\n\n// 2. Safely get search count from previous nodes\nconst searchCount = $('Format Search Results').first().json.resultCount || 0;\n\nlet factCheckResult = {\n  headline: $('Set Headline').first().json.headline || \"Unknown\",\n  verdict: \"UNVERIFIED\",\n  reasoning: geminiText,\n  confidence: \"HIGH\", \n  // FIX: Wrap the string in brackets to make it an array\n  key_findings: [\"Match found in search snippets\"], \n  sources_checked: searchCount,\n  missing_context: \"N/A\",\n  recommendation: \"Automated check complete\",\n  checked_at: new Date().toISOString()\n};\n\n// 3. Logic to extract the verdict\nconst lowerText = geminiText.toLowerCase();\nif (lowerText.includes(\"**true**\")) {\n  factCheckResult.verdict = \"TRUE\";\n} else if (lowerText.includes(\"**false**\")) {\n  factCheckResult.verdict = \"FALSE\";\n} else if (lowerText.includes(\"**misleading**\")) {\n  factCheckResult.verdict = \"MISLEADING\";\n}\n\nreturn factCheckResult;"
+      },
+      "id": "4edb728c-aa5c-4f4d-a57e-fb41c8dab51e",
+      "name": "Parse Fact Check Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5744,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "fact_checks",
+          "mode": "list",
+          "cachedResultName": "fact_checks"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "verdict": "={{ $json.verdict }}",
+            "confidence": "={{ $json.confidence }}",
+            "reasoning": "={{ $json.reasoning }}",
+            "key_findings": "={{ $json.key_findings }}",
+            "sources_checked": "={{ $json.sources_checked }}",
+            "missing_context": "={{ $json.missing_context }}",
+            "recommendation": "={{ $json.recommendation }}",
+            "checked_at": "={{ $json.checked_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "verdict",
+              "displayName": "verdict",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reasoning",
+              "displayName": "reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "key_findings",
+              "displayName": "key_findings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sources_checked",
+              "displayName": "sources_checked",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "missing_context",
+              "displayName": "missing_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommendation",
+              "displayName": "recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "checked_at",
+              "displayName": "checked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0dceca09-0f93-4738-a194-809d7a318880",
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        5952,
+        368
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "sUJYSB5vPxPLEKgn",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "fe1f9ba1-d6ec-4ba1-8fc3-08f61a72cfbe",
+      "name": "Format Final Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        6144,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "AIzaSyCBURxYfbo0KT9MWDaiHgjSkJVRV8N0JY8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\nJSON.stringify({\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Fact-check this headline using the provided search results.\\n\\nHeadline: \" + ($('Set Headline').item.json.headline || \"No Headline Found\") + \"\\n\\nSearch Results: \" + JSON.stringify($json.searchResults)\n        }\n      ]\n    }\n  ]\n})\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5568,
+        384
+      ],
+      "id": "9919c7ff-6c42-4732-ba03-0a2dbc7a3ef2",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Headline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Headline": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI Search": {
+      "main": [
+        [
+          {
+            "node": "Format Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Fact Check Result": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Format Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Search Results": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Parse Fact Check Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d6789830-8bf9-40d2-82b3-a44e079db60e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "573ca50f4d58b19991db8a148ce019169860a644b5e088e02404331d8c2843e5"
+  },
+  "id": "ajl7xmOUuWnlLESA",
+  "tags": []
+}
