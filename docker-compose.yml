@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres-container:
+    image: postgres:18
+    container_name: postgres-container
+    restart: unless-stopped
+    networks:
+      - agent-network
+    environment:
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_DB=my_database
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    networks:
+      - agent-network
+    ports:
+      - "5678:5678"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres-container
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=my_database
+      - DB_POSTGRESDB_USER=myuser
+      - DB_POSTGRESDB_PASSWORD=mysecretpassword
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_FUNCTION_ALLOW_EXTERNAL=JSON.stringify # Allows your code nodes to work
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres-container
+
+networks:
+  agent-network:
+    driver: bridge
+
